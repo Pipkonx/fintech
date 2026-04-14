@@ -23,6 +23,9 @@ use App\Http\Controllers\Admin\AdminAnalyticsController;
 use App\Http\Controllers\SocialController;
 use App\Http\Controllers\MarketAssetController;
 use App\Http\Controllers\FamousPortfolioController;
+use App\Http\Controllers\SupportController;
+use App\Http\Controllers\Profile\SecurityController;
+use App\Http\Controllers\Auth\TwoFactorChallengeController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -46,7 +49,7 @@ Route::get('/', function () {
         'laravelVersion' => Application::VERSION,
         'phpVersion' => PHP_VERSION,
     ]);
-});
+})->name('welcome');
 
 // Panel de Control (Dashboard) - Usando Controller
 Route::get('/dashboard', [DashboardController::class, 'index'])
@@ -61,6 +64,10 @@ Route::get('/api/dashboard/transactions', [DashboardController::class, 'getTrans
 Route::get('/transactions/export', [TransactionExportController::class, 'export'])
     ->middleware(['auth', 'verified'])
     ->name('transactions.export');
+
+Route::post('/transactions/import', [\App\Http\Controllers\TransactionActionController::class, 'import'])
+    ->middleware(['auth', 'verified'])
+    ->name('transactions.import');
 
 Route::get('/transactions', [TransactionController::class, 'index'])
     ->middleware(['auth', 'verified'])
@@ -126,6 +133,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/api/assets/{ticker}/chart', [MarketAssetController::class, 'getChartRange'])->name('assets.chart-data');
 
     Route::get('/famous-portfolios/{slug}', [FamousPortfolioController::class, 'show'])->name('famous-portfolios.show');
+    Route::post('/famous-portfolios/{slug}/follow', [FamousPortfolioController::class, 'toggleFollow'])->name('famous-portfolios.follow');
 
     Route::get('/social/feed', [SocialController::class, 'index'])->name('social.feed');
     Route::post('/social/post', [SocialController::class, 'storePost'])->name('social.post');
@@ -139,7 +147,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/social/report', [SocialController::class, 'reportContent'])->name('social.report');
 
     // Muro de Usuario y Perfil Social
-    Route::get('/perfil/{username?}', [ProfileController::class, 'show'])->name('social.profile');
+    Route::get('/perfil/{username?}', [ProfileController::class, 'show'])
+        ->name('social.profile')
+        ->where('username', '.*');
     Route::patch('/profile/social', [ProfileController::class, 'updateSocial'])->name('profile.social.update');
     Route::post('/profile/{user}/follow', [ProfileController::class, 'toggleFollow'])->name('profile.social.follow');
     Route::post('/profile/{user}/block', [ProfileController::class, 'block'])->name('profile.social.block');
@@ -163,6 +173,28 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Rutas de Suscripción (Pagos)
     Route::get('/plans', [SubscriptionController::class, 'index'])->name('subscription.index');
     Route::post('/subscribe', [SubscriptionController::class, 'subscribe'])->name('subscription.subscribe');
+
+    // Rutas de 2FA Login (Cerradas pero con acceso temporal por sesión)
+    Route::get('/login/2fa', [TwoFactorChallengeController::class, 'create'])->name('login.2fa');
+    Route::post('/login/2fa', [TwoFactorChallengeController::class, 'store'])->name('login.2fa.store');
+
+    // Rutas de Seguridad (Real 2FA TOTP)
+    Route::get('/profile/security', [SecurityController::class, 'index'])->name('profile.security');
+    Route::post('/profile/security/2fa/setup', [SecurityController::class, 'setup2fa'])->name('profile.security.setup2fa');
+    Route::post('/profile/security/2fa/activate', [SecurityController::class, 'activate2fa'])->name('profile.security.activate2fa');
+    Route::post('/profile/security/2fa/disable', [SecurityController::class, 'disable2fa'])->name('profile.security.disable2fa');
+
+    // Rutas de Soporte (Nuevo)
+    Route::get('/support', [SupportController::class, 'index'])->name('support.index');
+    Route::get('/support/tickets/{ticket}', [SupportController::class, 'show'])->name('support.show');
+    Route::post('/support/tickets', [SupportController::class, 'store'])->name('support.store');
+    Route::post('/support/tickets/{ticket}/reply', [SupportController::class, 'reply'])->name('support.reply');
+
+    // Onboarding
+    Route::post('/onboarding/complete', function () {
+        auth()->user()->update(['onboarding_completed_at' => now()]);
+        return back();
+    })->name('onboarding.complete');
 });
 
 // Panel de Administración (Protegido por Middleware Admin)
@@ -173,6 +205,12 @@ Route::middleware(['auth', 'verified', 'admin'])->prefix('admin')->name('admin.'
     Route::post('/users/{user}/toggle-admin', [AdminController::class, 'toggleAdmin'])->name('users.toggle-admin');
     Route::post('/users/{user}/update-subscription', [AdminController::class, 'updateSubscription'])->name('users.update-subscription');
     Route::delete('/users/{user}', [AdminController::class, 'deleteUser'])->name('users.delete');
+
+    // Gestión administrativa de Tickets
+    Route::get('/tickets', [\App\Http\Controllers\Admin\TicketController::class, 'index'])->name('tickets.index');
+    Route::get('/tickets/{ticket}', [\App\Http\Controllers\Admin\TicketController::class, 'show'])->name('tickets.show');
+    Route::post('/tickets/{ticket}/reply', [\App\Http\Controllers\Admin\TicketController::class, 'reply'])->name('tickets.reply');
+    Route::post('/tickets/{ticket}/close', [\App\Http\Controllers\Admin\TicketController::class, 'close'])->name('tickets.close');
 
     // Backups
     Route::post('/backup', [AdminController::class, 'generateBackup'])->name('backup.generate');

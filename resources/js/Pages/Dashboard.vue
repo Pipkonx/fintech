@@ -1,6 +1,6 @@
 <script setup>
 /**
- * Dashboard Principal - Wealth Manager
+ * Dashboard Principal - FintechPro
  * 
  * Este es el componente orquestador que centraliza la visualización del patrimonio,
  * inversiones, gastos y transacciones recientes. Sigue el patrón de diseño de
@@ -19,6 +19,8 @@ import ExpensesSection from '@/Components/Dashboard/ExpensesSection.vue';
 import EvolutionSection from '@/Components/Dashboard/EvolutionSection.vue';
 import RecentTransactions from '@/Components/Dashboard/RecentTransactions.vue';
 import UpgradePlanWidget from '@/Components/Dashboard/UpgradePlanWidget.vue';
+import FaqAssistant from '@/Components/Dashboard/FaqAssistant.vue';
+import WelcomeTour from '@/Components/Dashboard/WelcomeTour.vue';
 
 // Otros Componentes
 import TransactionModal from '@/Components/TransactionModal.vue';
@@ -37,6 +39,7 @@ const props = defineProps({
     unlinkedAssets: Array,    // Activos detectados pero no vinculados a mercado
     currentFilter: String,   // Filtro actual aplicado en el servidor
     selectedMonths: [String, Number], // Rango de meses actual para el gráfico
+    auth: Object,             // Autenticación (inyectado automáticamente por Inertia middleware)
 });
 
 // --- ESTADO REACTIVO ---
@@ -44,6 +47,7 @@ const { isPrivacyMode } = usePrivacy();
 const showModal = ref(false);
 const editingTransaction = ref(null);
 const isUpdatingChart = ref(false);
+const showTour = ref(false);
 
 // Modos de visualización persistentes
 const chartMode = ref('global'); // 'global' (patrimonio) | 'portfolios' (por carteras)
@@ -124,6 +128,11 @@ const loadMoreTrigger = ref(null);
 let observer = null;
 
 onMounted(() => {
+    // Verificar si se debe mostrar el tour de bienvenida
+    if (!props.auth.user.onboarding_completed_at) {
+        showTour.value = true;
+    }
+
     observer = new IntersectionObserver((entries) => {
         if (entries[0].isIntersecting) {
             loadMoreTransactions();
@@ -147,11 +156,6 @@ watch(() => props.recentTransactions, (newVal) => {
 }, { deep: true });
 
 // --- GESTIÓN DE MODAL ---
-const openNewTransaction = () => {
-    editingTransaction.value = null;
-    showModal.value = true;
-};
-
 const editTransaction = (transaction) => {
     editingTransaction.value = transaction;
     showModal.value = true;
@@ -159,7 +163,7 @@ const editTransaction = (transaction) => {
 </script>
 
 <template>
-    <Head title="Panel Financiero" />
+    <Head title="Dashboard" />
 
     <AuthenticatedLayout>
         <!-- Cabecera del Dashboard -->
@@ -167,10 +171,10 @@ const editTransaction = (transaction) => {
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h2 class="text-2xl font-bold leading-tight text-slate-800 dark:text-white">
-                        Panel Financiero
+                        Mi Dashboard
                     </h2>
                     <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                        Resumen detallado de tu situación patrimonial y flujo de caja.
+                        Resumen detallado de tu patrimonio y flujo de caja.
                     </p>
                 </div>
             </div>
@@ -193,7 +197,7 @@ const editTransaction = (transaction) => {
                 />
             </div>
 
-            <!-- Sección 2: Análisis de Distribución y Gastos (Fila Superior) -->
+            <!-- Sección 2: Distribución y Gastos (Fila Superior) -->
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 items-stretch">
                     <!-- 2.1. Distribución Global (Invertido vs Líquido) -->
@@ -219,7 +223,7 @@ const editTransaction = (transaction) => {
                 </div>
             </div>
 
-            <!-- Sección 3: Evolución Histórica (Gráfico de Líneas) -->
+            <!-- Sección 3: Mi Evolución (Gráfico de Líneas) -->
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <EvolutionSection 
                     :charts="charts" 
@@ -232,7 +236,7 @@ const editTransaction = (transaction) => {
                 />
             </div>
 
-            <!-- Sección 4: Carteras de Inversión (Ancho Completo) -->
+            <!-- Sección 4: Mis Inversiones (Ancho Completo) -->
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <PortfoliosSection 
                     :portfolios="portfolios" 
@@ -256,15 +260,11 @@ const editTransaction = (transaction) => {
 
         </div>
 
-        <!-- Accionador Flotante para Nueva Transacción -->
-        <div class="fixed bottom-8 right-8 z-40">
-            <button 
-                @click="openNewTransaction"
-                class="flex items-center justify-center w-14 h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg transition-transform hover:scale-110 active:scale-95"
-            >
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-            </button>
-        </div>
+        <!-- Tour de Bienvenida -->
+        <WelcomeTour :show="showTour" @close="showTour = false" />
+
+        <!-- Asistente de FAQ (Antiguo accionador flotante) -->
+        <FaqAssistant />
 
         <!-- Modal para Crear/Editar Transacciones -->
         <TransactionModal 
@@ -275,6 +275,5 @@ const editTransaction = (transaction) => {
             :categories="categories"
             @close="showModal = false" 
         />
-
     </AuthenticatedLayout>
 </template>

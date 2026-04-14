@@ -14,7 +14,7 @@ class User extends Authenticatable implements MustVerifyEmail
     use HasFactory, Notifiable, Billable;
 
     /**
-     * The attributes that are mass assignable.
+     * Los atributos que son asignables masivamente.
      *
      * @var list<string>
      */
@@ -32,11 +32,15 @@ class User extends Authenticatable implements MustVerifyEmail
         'enable_tax_projection',
         'tax_rate',
         'is_admin',
+        'google2fa_secret',
+        'onboarding_completed_at',
+        'two_factor_enabled',
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
+        'google2fa_secret',
     ];
 
     protected $appends = [
@@ -99,6 +103,11 @@ class User extends Authenticatable implements MustVerifyEmail
     public function following()
     {
         return $this->belongsToMany(User::class, 'followers', 'follower_id', 'followed_id')->withTimestamps();
+    }
+
+    public function followingGurus()
+    {
+        return $this->belongsToMany(FamousInvestor::class, 'guru_followers', 'user_id', 'famous_investor_id')->withTimestamps();
     }
 
     public function blockedUsers()

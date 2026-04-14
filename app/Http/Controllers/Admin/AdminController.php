@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Report;
 use App\Models\Transaction;
+use App\Models\Ticket;
 use App\Services\Admin\AdminService;
 use App\Services\Admin\BackupService;
 use App\Services\User\UserService;
@@ -57,7 +58,8 @@ class AdminController extends Controller
                 'id' => $r->id, 'user_name' => $r->user->name, 'reason' => $r->reason,
                 'type' => class_basename($r->reportable_type), 'ref_id' => $r->reportable_id,
                 'date' => $r->created_at->diffForHumans()
-            ])
+            ]),
+            'support_tickets_count' => Ticket::where('status', 'open')->count(),
         ]);
     }
 
@@ -120,6 +122,45 @@ class AdminController extends Controller
     public function downloadBackup($filename)
     {
         return response()->download(storage_path("app/backups/{$filename}"));
+    }
+
+    /**
+     * Importar un archivo de copia de seguridad externo.
+     */
+    public function importBackup(Request $request)
+    {
+        $request->validate([
+            'backup_file' => 'required|file',
+        ]);
+
+        try {
+            $filename = $this->backupService->importExternalBackup($request->file('backup_file'));
+            return back()->with('success', "Copia externa {$filename} importada correctamente.");
+        } catch (\Exception $e) {
+            return back()->with('error', 'Error al importar: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Subir y restaurar una copia de seguridad directamente.
+     */
+    public function restoreDirect(Request $request)
+    {
+        $request->validate([
+            'backup_file' => 'required|file',
+        ]);
+
+        try {
+            // 1. Importar temporalmente
+            $filename = $this->backupService->importExternalBackup($request->file('backup_file'));
+            
+            // 2. Restaurar inmediatamente
+            $result = $this->backupService->restoreFromBackup($filename);
+            
+            return back()->with($result['status'], $result['message']);
+        } catch (\Exception $e) {
+            return back()->with('error', 'Error en restauración directa: ' . $e->getMessage());
+        }
     }
 
     /**
